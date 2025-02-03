@@ -1,0 +1,345 @@
+#include <chrono>
+#include "pressio_options.h"
+#include "pressio_compressor.h"
+#include "libpressio_ext/cpp/metrics.h"
+#include "libpressio_ext/cpp/options.h"
+#include "libpressio_ext/cpp/pressio.h"
+#include "std_compat/memory.h"
+
+
+using std::chrono::high_resolution_clock;
+using std::chrono::time_point;
+using std::chrono::duration_cast;
+using std::chrono::microseconds;
+
+namespace precise_time_metrics{
+  struct time_range{
+    time_point<high_resolution_clock> begin;
+    time_point<high_resolution_clock> end;
+    unsigned int elapsed() const { return duration_cast<microseconds>(end-begin).count(); }
+  };
+  using timer = compat::optional<time_range>;
+  struct compression_actions {
+    precise_time_metrics::timer check_options;
+    precise_time_metrics::timer set_options;
+    precise_time_metrics::timer get_options;
+    precise_time_metrics::timer get_configuration;
+    precise_time_metrics::timer compress;
+    precise_time_metrics::timer compress_many;
+    precise_time_metrics::timer decompress;
+    precise_time_metrics::timer decompress_many;
+  };
+  struct metrics_actions {
+    precise_time_metrics::timer begin_check_options;
+    precise_time_metrics::timer begin_set_options;
+    precise_time_metrics::timer begin_get_options;
+    precise_time_metrics::timer begin_get_configuration;
+    precise_time_metrics::timer begin_compress;
+    precise_time_metrics::timer begin_compress_many;
+    precise_time_metrics::timer begin_decompress;
+    precise_time_metrics::timer begin_decompress_many;
+    precise_time_metrics::timer end_check_options;
+    precise_time_metrics::timer end_set_options;
+    precise_time_metrics::timer end_get_options;
+    precise_time_metrics::timer end_get_configuration;
+    precise_time_metrics::timer end_compress;
+    precise_time_metrics::timer end_compress_many;
+    precise_time_metrics::timer end_decompress;
+    precise_time_metrics::timer end_decompress_many;
+  };
+
+class precise_time_plugin : public libpressio_metrics_plugin {
+  public:
+  int set_options(pressio_options const& options) override {
+    get_meta(options, "precise_time:metric", metrics_plugins(), child_id, child);
+    return 0;
+  }
+  pressio_options get_options() const override {
+    pressio_options opts;
+    set_meta(opts, "precise_time:metric", child_id, child);
+    return opts;
+  }
+
+  int begin_check_options_impl(struct pressio_options const* opts) override {
+    self_time.check_options = precise_time_metrics::time_range();
+    self_time.check_options->begin = high_resolution_clock::now();
+
+    child_time.begin_check_options = precise_time_metrics::time_range();
+    child_time.begin_check_options->begin = high_resolution_clock::now();
+    child->begin_check_options(opts);
+    child_time.begin_check_options->end = high_resolution_clock::now();
+    return 0;
+  }
+
+  int end_check_options_impl(struct pressio_options const* opts, int rc) override {
+    self_time.check_options->end = high_resolution_clock::now(); // NOLINT(bugprone-unchecked-optional-access)
+
+    child_time.end_check_options = precise_time_metrics::time_range();
+    child_time.end_check_options->begin = high_resolution_clock::now();
+    child->end_check_options(opts, rc);
+    child_time.end_check_options->end = high_resolution_clock::now();
+    return 0;
+  }
+
+  int begin_get_options_impl() override {
+    self_time.get_options = precise_time_metrics::time_range();
+    self_time.get_options->begin = high_resolution_clock::now();
+
+    child_time.begin_get_options = precise_time_metrics::time_range();
+    child_time.begin_get_options->begin = high_resolution_clock::now();
+    child->begin_get_options();
+    child_time.begin_get_options->end = high_resolution_clock::now();
+    return 0;
+  }
+
+  int end_get_options_impl(struct pressio_options const* opts) override {
+    self_time.get_options->end = high_resolution_clock::now();  // NOLINT(bugprone-unchecked-optional-access)
+
+    child_time.end_get_options = precise_time_metrics::time_range();
+    child_time.end_get_options->begin = high_resolution_clock::now();
+    child->end_get_options(opts);
+    child_time.end_get_options->end = high_resolution_clock::now();
+    return 0;
+  }
+
+  int begin_get_configuration_impl() override {
+    self_time.get_configuration = precise_time_metrics::time_range();
+    self_time.get_configuration->begin = high_resolution_clock::now();
+
+    child_time.begin_get_configuration = precise_time_metrics::time_range();
+    child_time.begin_get_configuration->begin = high_resolution_clock::now();
+    child->begin_get_configuration();
+    child_time.begin_get_configuration->end = high_resolution_clock::now();
+    return 0;
+  }
+
+  int end_get_configuration_impl(struct pressio_options const& opts) override {
+    self_time.get_configuration->end = high_resolution_clock::now();// NOLINT(bugprone-unchecked-optional-access)
+
+    child_time.end_get_configuration = precise_time_metrics::time_range();
+    child_time.end_get_configuration->begin = high_resolution_clock::now();
+    child->end_get_configuration(opts);
+    child_time.end_get_configuration->end = high_resolution_clock::now();
+    return 0;
+  }
+
+  int begin_set_options_impl(struct pressio_options const& opts) override {
+    self_time.set_options = precise_time_metrics::time_range();
+    self_time.set_options->begin = high_resolution_clock::now();
+
+    child_time.begin_set_options = precise_time_metrics::time_range();
+    child_time.begin_set_options->begin = high_resolution_clock::now();
+    child->begin_set_options(opts);
+    child_time.begin_set_options->end = high_resolution_clock::now();
+    return 0;
+  }
+
+  int end_set_options_impl(struct pressio_options const& opts, int rc) override {
+    self_time.set_options->end = high_resolution_clock::now();// NOLINT(bugprone-unchecked-optional-access)
+
+    child_time.end_set_options = precise_time_metrics::time_range();
+    child_time.end_set_options->begin = high_resolution_clock::now();
+    child->end_set_options(opts, rc);
+    child_time.end_set_options->end = high_resolution_clock::now();
+    return 0;
+  }
+
+  int begin_compress_impl(const struct pressio_data * input, struct pressio_data const * output) override {
+    self_time.compress = precise_time_metrics::time_range();
+    self_time.compress->begin = high_resolution_clock::now();
+
+    child_time.begin_compress = precise_time_metrics::time_range();
+    child_time.begin_compress->begin = high_resolution_clock::now();
+    child->begin_compress(input, output);
+    child_time.begin_compress->end = high_resolution_clock::now();
+    return 0;
+  }
+
+  int end_compress_impl(struct pressio_data const* input, pressio_data const * output, int rc) override {
+    self_time.compress->end = high_resolution_clock::now();// NOLINT(bugprone-unchecked-optional-access)
+
+    child_time.end_compress = precise_time_metrics::time_range();
+    child_time.end_compress->begin = high_resolution_clock::now();
+    child->end_compress(input, output, rc);
+    child_time.end_compress->end = high_resolution_clock::now();
+    return 0;
+  }
+
+  int begin_decompress_impl(struct pressio_data const* input, pressio_data const* output) override {
+    self_time.decompress = precise_time_metrics::time_range();
+    self_time.decompress->begin = high_resolution_clock::now();
+
+    child_time.begin_decompress = precise_time_metrics::time_range();
+    child_time.begin_decompress->begin = high_resolution_clock::now();
+    child->begin_decompress(input, output);
+    child_time.begin_decompress->end = high_resolution_clock::now();
+    return 0;
+  }
+
+  int end_decompress_impl(struct pressio_data const* input, pressio_data const* output, int rc) override {
+    self_time.decompress->end = high_resolution_clock::now();// NOLINT(bugprone-unchecked-optional-access)
+
+    child_time.end_decompress = precise_time_metrics::time_range();
+    child_time.end_decompress->begin = high_resolution_clock::now();
+    child->end_decompress(input, output, rc);
+    child_time.end_decompress->end = high_resolution_clock::now();
+    return 0;
+  }
+
+  int begin_compress_many_impl(compat::span<const pressio_data* const> const& inputs,
+                                   compat::span<const pressio_data* const> const& outputs) override {
+    self_time.compress_many = precise_time_metrics::time_range();
+    self_time.compress_many->begin = high_resolution_clock::now();
+
+    child_time.begin_compress_many = precise_time_metrics::time_range();
+    child_time.begin_compress_many->begin = high_resolution_clock::now();
+    child->begin_compress_many(inputs, outputs);
+    child_time.begin_compress_many->end = high_resolution_clock::now();
+    return 0;
+  }
+
+  int end_compress_many_impl(compat::span<const pressio_data* const> const& inputs,
+                                   compat::span<const pressio_data* const> const& outputs, int rc) override {
+    self_time.compress_many->end = high_resolution_clock::now();// NOLINT(bugprone-unchecked-optional-access)
+
+    child_time.end_compress_many = precise_time_metrics::time_range();
+    child_time.end_compress_many->begin = high_resolution_clock::now();
+    child->end_compress_many(inputs, outputs, rc);
+    child_time.end_compress_many->end = high_resolution_clock::now();
+    return 0;
+   
+  }
+
+  int begin_decompress_many_impl(compat::span<const pressio_data* const> const& inputs,
+                                   compat::span<const pressio_data* const> const& outputs) override {
+    self_time.decompress_many = precise_time_metrics::time_range();
+    self_time.decompress_many->begin = high_resolution_clock::now();
+
+    child_time.begin_decompress_many = precise_time_metrics::time_range();
+    child_time.begin_decompress_many->begin = high_resolution_clock::now();
+    child->begin_decompress_many(inputs, outputs);
+    child_time.begin_decompress_many->end = high_resolution_clock::now();
+    return 0;
+  }
+
+  int end_decompress_many_impl(compat::span<const pressio_data* const> const& inputs,
+                                   compat::span<const pressio_data* const> const& outputs, int rc) override {
+    self_time.decompress_many->end = high_resolution_clock::now();// NOLINT(bugprone-unchecked-optional-access)
+
+    child_time.end_decompress_many = precise_time_metrics::time_range();
+    child_time.end_decompress_many->begin = high_resolution_clock::now();
+    child->end_decompress_many(inputs, outputs, rc);
+    child_time.end_decompress_many->end = high_resolution_clock::now();
+    return 0;
+  }
+
+  struct pressio_options get_configuration_impl() const override {
+    pressio_options opts;
+    set_meta_configuration(opts, "precise_time:metric", metrics_plugins(), child);
+    set(opts, "pressio:stability", "stable");
+    set(opts, "pressio:thread_safe", pressio_thread_safety_multiple);
+    set(opts, "predictors:requires_decompress", std::vector<std::string>{"precise_time:decompress", "precise_time:decompress_many", "precise_time:begin_decompress", "precise_time:end_decompress", "precise_time:begin_decompress_many", "precise_time:end_decompress_many"});
+    set(opts, "predictors:invalidate", std::vector<std::string>{"predictors:runtime", "predictors:nondeterministc"});
+    return opts;
+  }
+
+  struct pressio_options get_documentation_impl() const override {
+    pressio_options opts;
+    set_meta_docs(opts, "precise_time:metric", "time a child metrics plugin (ms)", child);
+    set(opts, "pressio:description", "records time used in each operation in ms");
+    set(opts, "precise_time:check_options", "time in check_options (ms)");
+    set(opts, "precise_time:set_options", "time in set options (ms)");
+    set(opts, "precise_time:get_options", "time in get options (ms)");
+    set(opts, "precise_time:get_configuration", "time in get configuration (ms)");
+    set(opts, "precise_time:compress", "time in compress (ms)");
+    set(opts, "precise_time:decompress", "time in decompress (ms)");
+    set(opts, "precise_time:compress_many", "time in compress_many (ms)");
+    set(opts, "precise_time:decompress_many", "time in decompress_many (ms)");
+
+    set(opts, "precise_time:begin_check_options", "time for child's begin_check_options (ms)");
+    set(opts, "precise_time:begin_set_options", "time for child's begin_set_options (ms)");
+    set(opts, "precise_time:begin_get_options", "time for child's begin_get_options (ms)");
+    set(opts, "precise_time:begin_compress", "time for child's begin_compress (ms)");
+    set(opts, "precise_time:begin_get_configuration", "time for child's begin_get_configuration (ms)");
+    set(opts, "precise_time:begin_decompress", "time for child's begin_decompress (ms)");
+    set(opts, "precise_time:begin_compress_many", "time for child's begin_compress_many (ms)");
+    set(opts, "precise_time:begin_decompress_many", "time for child's begin_decompress_many (ms)");
+    set(opts, "precise_time:end_check_options", "time for child's end_check_options (ms)");
+    set(opts, "precise_time:end_set_options", "time for child's end_set_options (ms)");
+    set(opts, "precise_time:end_get_options", "time for child's end_get_options (ms)");
+    set(opts, "precise_time:end_compress", "time for child's end_compress (ms)");
+    set(opts, "precise_time:end_get_configuration", "time for child's end_get_configuration (ms)");
+    set(opts, "precise_time:end_decompress", "time for child's end_decompress (ms)");
+    set(opts, "precise_time:end_compress_many", "time for child's end_compress_many (ms)");
+    set(opts, "precise_time:end_decompress_many", "time for child's end_decompress_many (ms)");
+    return opts;
+  }
+
+  pressio_options get_metrics_results(pressio_options const & parent)  override {
+    struct pressio_options opt = child->get_metrics_results(parent);
+
+    auto set_or = [&opt, this](const char* key, precise_time_metrics::timer time) {
+      if(time) {
+        set(opt, key, time->elapsed());
+      } else {
+        set_type(opt, key, pressio_option_uint32_type);
+      }
+    };
+
+    set_or("precise_time:check_options", self_time.check_options);
+    set_or("precise_time:set_options", self_time.set_options);
+    set_or("precise_time:get_options", self_time.get_options);
+    set_or("precise_time:compress", self_time.compress);
+    set_or("precise_time:get_configuration", self_time.get_configuration);
+    set_or("precise_time:decompress", self_time.decompress);
+    set_or("precise_time:compress_many", self_time.compress_many);
+    set_or("precise_time:decompress_many", self_time.decompress_many);
+
+    set_or("precise_time:begin_check_options", child_time.begin_check_options);
+    set_or("precise_time:begin_set_options", child_time.begin_set_options);
+    set_or("precise_time:begin_get_options", child_time.begin_get_options);
+    set_or("precise_time:begin_compress", child_time.begin_compress);
+    set_or("precise_time:begin_get_configuration", child_time.begin_get_configuration);
+    set_or("precise_time:begin_decompress", child_time.begin_decompress);
+    set_or("precise_time:begin_compress_many", child_time.begin_compress_many);
+    set_or("precise_time:begin_decompress_many", child_time.begin_decompress_many);
+    set_or("precise_time:end_check_options", child_time.end_check_options);
+    set_or("precise_time:end_set_options", child_time.end_set_options);
+    set_or("precise_time:end_get_options", child_time.end_get_options);
+    set_or("precise_time:end_compress", child_time.end_compress);
+    set_or("precise_time:end_get_configuration", child_time.end_get_configuration);
+    set_or("precise_time:end_decompress", child_time.end_decompress);
+    set_or("precise_time:end_compress_many", child_time.end_compress_many);
+    set_or("precise_time:end_decompress_many", child_time.end_decompress_many);
+
+    return opt;
+  }
+
+  std::unique_ptr<libpressio_metrics_plugin> clone() override {
+    return compat::make_unique<precise_time_plugin>(*this);
+  }
+
+  const char* prefix() const override {
+    return "precise_time";
+  }
+
+  void set_name_impl(std::string const& new_name) override {
+    if(new_name != "") {
+    child->set_name(new_name + "/" + child->prefix());
+    } else {
+    child->set_name(new_name);
+    }
+  }
+  std::vector<std::string> children() const final {
+      return { child->get_name() };
+  }
+
+  private:
+  compression_actions self_time;
+  metrics_actions child_time;
+  std::string child_id = "noop";
+  pressio_metrics child = metrics_plugins().build("noop");
+};
+
+static pressio_register metrics_precise_time_plugin(metrics_plugins(), "precise_time", [](){ return compat::make_unique<precise_time_plugin>(); });
+}
